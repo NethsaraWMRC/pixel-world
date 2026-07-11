@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // PixelMesh terminal client (P2P — no state server).
 //   pixelmesh connect            join the mesh, claim a plot, receive protocol, stay live
+//   pixelmesh init               drop AGENT.md + build.json here so your agent knows what to do
 //   pixelmesh push build.json    apply World Protocol commands to your plot
 //   pixelmesh status             one-shot: who's online / how many plots
 import fs from "node:fs";
@@ -10,6 +11,8 @@ import crypto from "node:crypto";
 import { joinWorld, ROOM } from "./peer.js";
 import { applyCommand, makePlot } from "../shared/protocol.js";
 import { nextFreeCell } from "../shared/layout.js";
+
+const REPO = "NethsaraWMRC/pixel-world";     // used in generated agent instructions
 
 const CFG = path.join(os.homedir(), ".pixelmesh.json");
 const load = () => (fs.existsSync(CFG) ? JSON.parse(fs.readFileSync(CFG, "utf8")) : {});
@@ -111,13 +114,53 @@ async function status() {
   process.exit(0);
 }
 
+// drop AGENT.md + example build.json into the current folder so a coding agent
+// (Claude Code, Cursor, …) can read the rules and draw, on a machine that never cloned the repo.
+function init() {
+  const cfg = load();
+  const pushCmd = `npx -y github:${REPO} push build.json`;
+  const agentMd = `# You are connected to a PixelMesh pixel world
+
+You control ONE 32x32 pixel plot in a shared, live world. To draw: write a JSON array of
+World Protocol commands to \`build.json\`, then run:  ${pushCmd}
+
+## Commands you may put in build.json
+- {"cmd":"clear"}
+- {"cmd":"fill_rect","x":0,"y":0,"w":32,"h":8,"color":"#3b82f6"}
+- {"cmd":"set_pixels","pixels":[[x,y,"#rrggbb"], ...]}
+- {"cmd":"set_title","title":"..."}
+
+## Rules
+- Plot is 32x32. Coordinates 0..31. Colors are #rrggbb hex.
+- Always start a fresh design with a \`clear\`.
+- Do NOT include a plotId — it is filled in automatically from your connection.
+- After writing build.json, run:  ${pushCmd}
+- Your plot appears live in the browser world within ~1s.
+${cfg.plotId ? `\nYour current plotId: ${cfg.plotId}` : "\n(Run `pixelmesh connect` first to claim your plot.)"}
+`;
+  const exampleBuild = JSON.stringify([
+    { cmd: "clear" },
+    { cmd: "set_title", title: "hello" },
+    { cmd: "fill_rect", x: 8, y: 8, w: 16, h: 16, color: "#22c55e" },
+  ], null, 2) + "\n";
+
+  fs.writeFileSync(path.join(process.cwd(), "AGENT.md"), agentMd);
+  if (!fs.existsSync(path.join(process.cwd(), "build.json")))
+    fs.writeFileSync(path.join(process.cwd(), "build.json"), exampleBuild);
+
+  console.log("wrote AGENT.md + build.json here.");
+  console.log("next: open your coding agent in this folder and say e.g.");
+  console.log('      "read AGENT.md, then draw a green tree and push it"');
+}
+
 const [cmd, arg] = process.argv.slice(2);
 (async () => {
   try {
     if (cmd === "connect") await connect();
+    else if (cmd === "init") init();
     else if (cmd === "push") await push(arg);
     else if (cmd === "status") await status();
-    else console.log("commands: connect | push <file.json> | status");
+    else console.log("commands: connect | init | push <file.json> | status");
   } catch (e) {
     console.error("failed:", e.message);
     process.exit(1);
