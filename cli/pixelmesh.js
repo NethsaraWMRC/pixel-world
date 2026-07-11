@@ -19,6 +19,11 @@ const CFG = path.join(os.homedir(), ".pixelmesh.json");
 const load = () => (fs.existsSync(CFG) ? JSON.parse(fs.readFileSync(CFG, "utf8")) : {});
 const save = (o) => fs.writeFileSync(CFG, JSON.stringify(o, null, 2));
 
+// local IPC: `push` hands commands to the running `connect` session (single writer).
+const DIR = path.join(os.homedir(), ".pixelmesh");
+const SESSION = path.join(DIR, "session.json");   // connect heartbeat
+const INBOX = path.join(DIR, "inbox.json");        // pending push commands
+
 // signaling URL resolution: --signaling flag > PIXELMESH_SIGNALING env > saved cfg
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -76,7 +81,23 @@ async function connect() {
   awareness.on("change", () =>
     console.log(`online: ${awareness.getStates().size} · plots: ${plots.size}`));
 
-  process.on("SIGINT", () => { provider.destroy(); process.exit(0); });
+  // ---- this session is the single writer for your plot ----
+  // publish a heartbeat, and apply any commands `push` drops in the local inbox.
+  const myPlotId = mine.get("plotId");
+  fs.mkdirSync(DIR, { recursive: true });
+  const beat = () => { try { fs.writeFileSync(SESSION, JSON.stringify({ plotId: myPlotId, ts: Date.now() })); } catch {} };
+  beat(); setInterval(beat, 2000);
+  let lastNonce = 0;
+  setInterval(() => {
+    let msg; try { msg = JSON.parse(fs.readFileSync(INBOX, "utf8")); } catch { return; }
+    if (!msg || msg.nonce <= lastNonce) return;
+    lastNonce = msg.nonce;
+    let ok = 0;
+    for (const c of msg.cmds) { if (!c.plotId) c.plotId = myPlotId; if (applyCommand(plots, peerId, c)) ok++; }
+    console.log(`drew ${ok}/${msg.cmds.length} from push`);
+  }, 400);
+
+  process.on("SIGINT", () => { try { fs.unlinkSync(SESSION); } catch {} provider.destroy(); process.exit(0); });
   await new Promise(() => {}); // keep the peer alive (it holds your plot in the mesh)
 }
 
@@ -85,24 +106,16 @@ async function push(file) {
   const cfg = load();
   if (!cfg.peerId) { console.error("run `pixelworld connect` first."); process.exit(1); }
   const cmds = JSON.parse(fs.readFileSync(file, "utf8"));
-  const { plots, provider } = joinWorld(cfg.peerId, { signaling: resolveSignaling() });
 
-  // fill in plotId for commands that omit it (single-plot convenience)
-  for (const c of cmds) if (!c.plotId) c.plotId = cfg.plotId;
-
-  // wait until your plot actually syncs into this peer's doc (survives tunnel latency)
-  console.log("joining mesh, waiting for your plot to sync…");
-  const ok = await waitFor(() => plots.get(cfg.plotId), 15000);
-  if (!ok) {
-    console.error(`plot ${cfg.plotId} not found in the mesh. Is \`connect\` running (holding it)?`);
-    provider.destroy(); process.exit(1);
+  // hand the commands to the running `connect` session via the local inbox (no mesh join).
+  let sess; try { sess = JSON.parse(fs.readFileSync(SESSION, "utf8")); } catch {}
+  if (!sess || Date.now() - sess.ts > 8000) {
+    console.error("no live session. In another terminal run `pixelworld connect` and keep it open, then push again.");
+    process.exit(1);
   }
-
-  let applied = 0;
-  for (const cmd of cmds) if (applyCommand(plots, cfg.peerId, cmd)) applied++;
-  console.log(`applied ${applied}/${cmds.length} commands to ${cfg.plotId}`);
-  await settle(2500);   // let the change propagate to other peers before we exit
-  provider.destroy();
+  fs.mkdirSync(DIR, { recursive: true });
+  fs.writeFileSync(INBOX, JSON.stringify({ cmds, nonce: Date.now(), plotId: cfg.plotId }));
+  console.log(`queued ${cmds.length} commands to your live session (${sess.plotId}) — appears in the world in ~1s.`);
   process.exit(0);
 }
 
