@@ -44,8 +44,8 @@
   import { plotOrigin, PLOT_W, PLOT_H } from "../shared/layout.js";
 
   const ROOM = "pixelmesh-world";
-  // signaling: ?sig=wss://your-url  overrides the default below (local testing default)
-  const DEFAULT_SIGNALING = "ws://localhost:4444";
+  // signaling: ?sig=wss://your-url  overrides the default below
+  const DEFAULT_SIGNALING = "wss://pixel-world.nethsarawmrc.deno.net";
   const SIGNALING = [new URLSearchParams(location.search).get("sig") || DEFAULT_SIGNALING];
 
   const doc = new Y.Doc();

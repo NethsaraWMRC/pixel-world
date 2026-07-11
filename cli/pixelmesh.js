@@ -18,8 +18,8 @@ const save = (o) => fs.writeFileSync(CFG, JSON.stringify(o, null, 2));
 // signaling URL resolution: --signaling flag > PIXELMESH_SIGNALING env > saved cfg
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-// local testing default; for remote peers pass --signaling wss://your-host or set PIXELMESH_SIGNALING
-const DEFAULT_SIGNALING = "ws://localhost:4444";
+// public signaling (Deno Deploy). Override locally with --signaling or PIXELMESH_SIGNALING.
+const DEFAULT_SIGNALING = "wss://pixel-world.nethsarawmrc.deno.net";
 function resolveSignaling() {
   return flag("--signaling") || process.env.PIXELMESH_SIGNALING || load().signaling || DEFAULT_SIGNALING;
 }
@@ -104,7 +104,8 @@ async function status() {
   const cfg = load();
   const peerId = cfg.peerId || "peer_probe";
   const { plots, awareness, provider } = joinWorld(peerId, { signaling: resolveSignaling() });
-  await settle(2000);
+  // wait for peer discovery + a first sync (up to 8s) so we don't report an empty world early
+  await waitFor(() => awareness.getStates().size > 1 && plots.size > 0, 8000);
   console.log(`online: ${awareness.getStates().size} · plots: ${plots.size}`);
   provider.destroy();
   process.exit(0);
