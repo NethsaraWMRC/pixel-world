@@ -30,7 +30,8 @@ const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 
 // public signaling (Deno Deploy). Override locally with --signaling or PIXELMESH_SIGNALING.
 const DEFAULT_SIGNALING = "wss://pixel-world.nethsarawmrc.deno.net";
 function resolveSignaling() {
-  return flag("--signaling") || process.env.PIXELMESH_SIGNALING || load().signaling || DEFAULT_SIGNALING;
+  // explicit flag/env wins; otherwise always the baked default (never a stale saved value)
+  return flag("--signaling") || process.env.PIXELMESH_SIGNALING || DEFAULT_SIGNALING;
 }
 
 const PROTOCOL = {
@@ -67,7 +68,7 @@ async function connect() {
     mine = makePlot(Y, plots, { plotId, owner: peerId, cell });
     console.log(`claimed ${plotId} at cell ${cell}`);
   }
-  save({ peerId, plotId: mine.get("plotId"), room: ROOM, signaling });
+  save({ peerId, plotId: mine.get("plotId"), room: ROOM });
 
   console.log("\n=== WELCOME SIGNAL ===");
   console.log("your plot:", mine.get("plotId"));
