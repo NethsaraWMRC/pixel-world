@@ -13,6 +13,7 @@ import { applyCommand, makePlot } from "../shared/protocol.js";
 import { nextFreeCell } from "../shared/layout.js";
 
 const REPO = "NethsaraWMRC/pixel-world";     // used in generated agent instructions
+const VIEWER = "https://nethsarawmrc.github.io/pixel-world/web/index.html"; // browser world
 
 const CFG = path.join(os.homedir(), ".pixelmesh.json");
 const load = () => (fs.existsSync(CFG) ? JSON.parse(fs.readFileSync(CFG, "utf8")) : {});
@@ -68,6 +69,8 @@ async function connect() {
   console.log("rules   :", PROTOCOL.plot);
   console.log("push    :", PROTOCOL.howToPush);
   console.log("commands:", PROTOCOL.commands.join(", "));
+  console.log("\nSEE YOUR DRAWING — open this in a browser:");
+  console.log(`  ${VIEWER}?plot=${mine.get("plotId")}`);
   console.log(`\nlive · online: ${awareness.getStates().size} · plots: ${plots.size}. Ctrl+C to leave.\n`);
 
   awareness.on("change", () =>
