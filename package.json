@@ -1,0 +1,23 @@
+{
+  "name": "pixelmesh",
+  "version": "0.1.0",
+  "description": "P2P pixel world: connect from any terminal, agent pushes, syncs peer-to-peer. No state server.",
+  "type": "module",
+  "bin": {
+    "pixelmesh": "cli/pixelmesh.js"
+  },
+  "scripts": {
+    "signal": "node node_modules/y-webrtc/bin/server.js",
+    "connect": "node cli/pixelmesh.js connect",
+    "status": "node cli/pixelmesh.js status",
+    "web": "node web/serve.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "yjs": "^13.6.20",
+    "y-webrtc": "^10.3.0",
+    "node-datachannel": "^0.11.0"
+  }
+}

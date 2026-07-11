@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PixelMesh</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: #0b0b0f; color: #8a8; font: 12px monospace; }
+  canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  #hud { position: fixed; top: 8px; left: 8px; color: #6a6; pointer-events: none;
+         background: rgba(0,0,0,.35); padding: 4px 8px; border-radius: 4px; }
+  #help { position: fixed; bottom: 8px; left: 8px; color: #566; pointer-events: none; }
+  #ctrl { position: fixed; top: 8px; right: 8px; display: flex; gap: 4px;
+          background: rgba(0,0,0,.4); padding: 6px; border-radius: 6px; }
+  #ctrl input { width: 130px; background: #15151c; color: #cde; border: 1px solid #333;
+                border-radius: 4px; padding: 4px 6px; font: 12px monospace; }
+  #ctrl button { background: #1d2733; color: #cde; border: 1px solid #345; border-radius: 4px;
+                 padding: 4px 8px; font: 12px monospace; cursor: pointer; }
+  #ctrl button:hover { background: #26374a; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "yjs": "https://esm.sh/yjs@13.6.20",
+    "y-webrtc": "https://esm.sh/y-webrtc@10.3.0?external=yjs"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="hud">connecting…</div>
+  <div id="help">drag to move · scroll / pinch to zoom · F focus · 0 fit all</div>
+  <div id="ctrl">
+    <input id="plotInput" placeholder="your plotId" spellcheck="false" />
+    <button type="button" id="focusBtn" title="jump to that plot (F)">Focus</button>
+    <button type="button" id="fitBtn" title="see everything (0)">Fit all</button>
+  </div>
+  <canvas id="c"></canvas>
+<script type="module">
+  import * as Y from "yjs";
+  import { WebrtcProvider } from "y-webrtc";
+  import { plotOrigin, PLOT_W, PLOT_H } from "../shared/layout.js";
+
+  const ROOM = "pixelmesh-world";
+  // signaling: ?sig=wss://your-url  overrides the default below (local testing default)
+  const DEFAULT_SIGNALING = "ws://localhost:4444";
+  const SIGNALING = [new URLSearchParams(location.search).get("sig") || DEFAULT_SIGNALING];
+
+  const doc = new Y.Doc();
+  const plots = doc.getMap("plots");
+  const provider = new WebrtcProvider(ROOM, doc, { signaling: SIGNALING, maxConns: 40 });
+  const peerId = "web_" + Math.random().toString(36).slice(2, 8);
+  provider.awareness.setLocalStateField("peer", { id: peerId, t: Date.now() });
+
+  const cv = document.getElementById("c");
+  const ctx = cv.getContext("2d");
+  const hud = document.getElementById("hud");
+
+  // ---- camera: screenPx = worldPx * cam.scale + cam.{x,y} ----
+  const cam = { x: 0, y: 0, scale: 6 };
+  let started = false;
+
+  function resize() {
+    cv.width = window.innerWidth;
+    cv.height = window.innerHeight;
+    draw();
+  }
+  window.addEventListener("resize", resize);
+
+  // ---- focus: which plotId is "mine" (from welcome signal / ~/.pixelmesh.json) ----
+  let focusId = new URLSearchParams(location.search).get("plot")
+             || localStorage.getItem("pm_focus") || "";
+  const plotInput = document.getElementById("plotInput");
+  plotInput.value = focusId;
+
+  function centerWorld(cx, cy, scale) {
+    if (scale) cam.scale = scale;
+    cam.x = cv.width / 2 - cx * cam.scale;
+    cam.y = cv.height / 2 - cy * cam.scale;
+    draw();
+  }
+
+  // center the camera on cell 0 the first time plots exist
+  function centerOnCenterCell() {
+    const o = plotOrigin(0);
+    centerWorld(o.x + PLOT_W / 2, o.y + PLOT_H / 2);
+  }
+
+  // jump to a specific plot by id, zoomed so it fills most of the screen
+  function focusPlot(id) {
+    const plot = [...plots.values()].find((p) => p.get("plotId") === id);
+    if (!plot) { hud.textContent = `plot ${id || "?"} not found (is it connected?)`; return false; }
+    focusId = id;
+    localStorage.setItem("pm_focus", id);
+    plotInput.value = id;
+    const o = plotOrigin(plot.get("cell"));
+    const fit = Math.min(cv.width, cv.height) * 0.7 / PLOT_W;   // plot ~70% of viewport
+    centerWorld(o.x + PLOT_W / 2, o.y + PLOT_H / 2, Math.max(1, Math.min(80, fit)));
+    return true;
+  }
+
+  // fit every plot into view
+  function fitAll() {
+    if (plots.size === 0) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of plots.values()) {
+      const o = plotOrigin(p.get("cell"));
+      minX = Math.min(minX, o.x); minY = Math.min(minY, o.y);
+      maxX = Math.max(maxX, o.x + PLOT_W); maxY = Math.max(maxY, o.y + PLOT_H);
+    }
+    const pad = 1.15;
+    const s = Math.min(cv.width / ((maxX - minX) * pad), cv.height / ((maxY - minY) * pad));
+    centerWorld((minX + maxX) / 2, (minY + maxY) / 2, Math.max(1, Math.min(80, s)));
+  }
+
+  let raf = 0;
+  function draw() {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#0b0b0f";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.x, cam.y);
+      for (const plot of plots.values()) {
+        const { x: ox, y: oy } = plotOrigin(plot.get("cell"));
+        const mine = plot.get("plotId") === focusId;
+        // plot border — bright for your focused plot, faint otherwise
+        ctx.strokeStyle = mine ? "#4ade80" : "#20202a";
+        ctx.lineWidth = (mine ? 2 : 1) / cam.scale;
+        ctx.strokeRect(ox, oy, PLOT_W, PLOT_H);
+        const px = plot.get("pixels");
+        if (px) px.forEach((color, key) => {
+          const [x, y] = key.split(",").map(Number);
+          ctx.fillStyle = color;
+          ctx.fillRect(ox + x, oy + y, 1, 1);
+        });
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      hud.textContent = `online: ${provider.awareness.getStates().size} · plots: ${plots.size} · zoom ${cam.scale.toFixed(1)}x`;
+    });
+  }
+
+  function onData() {
+    if (!started && plots.size > 0) {
+      started = true;
+      // if we know which plot is ours, jump to it; otherwise center on the middle
+      if (!(focusId && focusPlot(focusId))) centerOnCenterCell();
+    }
+    draw();
+  }
+  plots.observeDeep(onData);
+  provider.awareness.on("change", draw);
+
+  // ---- focus controls ----
+  document.getElementById("focusBtn").addEventListener("click", () => focusPlot(plotInput.value.trim()));
+  document.getElementById("fitBtn").addEventListener("click", fitAll);
+  plotInput.addEventListener("keydown", (e) => { if (e.key === "Enter") focusPlot(plotInput.value.trim()); });
+  window.addEventListener("keydown", (e) => {
+    if (document.activeElement === plotInput) return;
+    if (e.key === "f" || e.key === "F") focusPlot(plotInput.value.trim() || focusId);
+    else if (e.key === "0") fitAll();
+  });
+
+  // ---- pan (mouse) ----
+  let dragging = false, lastX = 0, lastY = 0;
+  cv.addEventListener("mousedown", (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY; cv.classList.add("dragging");
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    cam.x += e.clientX - lastX; cam.y += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY; draw();
+  });
+  window.addEventListener("mouseup", () => { dragging = false; cv.classList.remove("dragging"); });
+
+  // ---- zoom (wheel), toward cursor ----
+  cv.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+
+  function zoomAt(sx, sy, factor) {
+    const ns = Math.min(80, Math.max(1, cam.scale * factor));
+    const wx = (sx - cam.x) / cam.scale, wy = (sy - cam.y) / cam.scale;
+    cam.scale = ns;
+    cam.x = sx - wx * cam.scale;
+    cam.y = sy - wy * cam.scale;
+    draw();
+  }
+
+  // ---- touch: 1 finger pan, 2 finger pinch-zoom ----
+  let touchMode = null, pinchDist = 0, pinchMid = { x: 0, y: 0 };
+  cv.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) { touchMode = "pan"; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+    else if (e.touches.length === 2) { touchMode = "pinch"; [pinchDist, pinchMid] = pinch(e); }
+  }, { passive: false });
+  cv.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (touchMode === "pan" && e.touches.length === 1) {
+      const t = e.touches[0];
+      cam.x += t.clientX - lastX; cam.y += t.clientY - lastY;
+      lastX = t.clientX; lastY = t.clientY; draw();
+    } else if (touchMode === "pinch" && e.touches.length === 2) {
+      const [d, mid] = pinch(e);
+      zoomAt(mid.x, mid.y, d / pinchDist);
+      pinchDist = d;
+    }
+  }, { passive: false });
+  cv.addEventListener("touchend", (e) => { touchMode = e.touches.length ? touchMode : null; });
+
+  function pinch(e) {
+    const a = e.touches[0], b = e.touches[1];
+    const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+    return [Math.hypot(dx, dy), { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }];
+  }
+
+  resize();
+</script>
+</body>
+</html>

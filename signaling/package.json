@@ -1,0 +1,16 @@
+{
+  "name": "pixelmesh-signaling",
+  "version": "0.1.0",
+  "description": "Tiny y-webrtc signaling server (peer introductions only).",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "lib0": "^0.2.94"
+  }
+}
