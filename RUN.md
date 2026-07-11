@@ -53,24 +53,12 @@ Signaling is tiny + cheap (just peer introductions) — it is NOT the expensive 
 
 ## PART A — HOST setup (do this once)
 
-### A1. Get a public signaling URL — choose ONE
+### A1. Get a public signaling URL
 
-**Option 1: Deploy to Fly.io (recommended — stable, always-on, free tier)**
-```console
-# install flyctl: https://fly.io/docs/h-the-cli/  then:
-fly launch --no-deploy            # creates fly.toml (uses the included Dockerfile)
-fly deploy
-fly info                          # -> hostname like pixelmesh-sig.fly.dev
-```
-Your signaling URL is: `wss://pixelmesh-sig.fly.dev`
-
-**Option 2: Tunnel your local server (quick, but URL changes each run)**
-```console
-npm run signal                                  # terminal 1, leave running
-cloudflared tunnel --url http://localhost:4444  # terminal 2 -> prints https://xxx.trycloudflare.com
-```
-Your signaling URL is that address with `https` → `wss`: `wss://xxx.trycloudflare.com`
-> Needs working IPv6 on your network. If it fails to connect, use Option 1.
+**Deploy to Deno Deploy (free, no credit card, always-on).** Full step-by-step is in
+**DEPLOY.md** — short version: push repo to GitHub, then at https://dash.deno.com create a
+project from the repo with entry point `signaling-deno/main.ts`. You get
+`https://your-project.deno.dev`; your signaling URL is `wss://your-project.deno.dev`.
 
 ### A2. Bake the URL in (so users don't have to type it)
 Edit both files, set your URL:
@@ -121,7 +109,7 @@ The tree appears in the Host's browser world (and every viewer) within ~1s.
 |---|---|---|
 | host | `npm run signal` | signaling server (peer introductions) |
 | host | `npm run web` | browser world viewer |
-| host | `fly deploy` / `cloudflared tunnel` | expose signaling to the internet |
+| host | Deno Deploy (see DEPLOY.md) | expose signaling to the internet |
 | both | `pixelmesh connect` | join world, claim a plot, stay live |
 | both | `pixelmesh push build.json` | draw onto your plot |
 | both | `pixelmesh status` | who's online / how many plots |
