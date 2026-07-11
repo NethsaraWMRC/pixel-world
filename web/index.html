@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PixelMesh</title>
+<title>PixelWorld</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; }
   body { background: #0b0b0f; color: #8a8; font: 12px monospace; }
@@ -42,6 +42,7 @@
   import * as Y from "yjs";
   import { WebrtcProvider } from "y-webrtc";
   import { plotOrigin, PLOT_W, PLOT_H } from "../shared/layout.js";
+  import { unpackCells } from "../shared/protocol.js";
 
   const ROOM = "pixelmesh-world";
   // signaling: ?sig=wss://your-url  overrides the default below
@@ -59,7 +60,7 @@
   const hud = document.getElementById("hud");
 
   // ---- camera: screenPx = worldPx * cam.scale + cam.{x,y} ----
-  const cam = { x: 0, y: 0, scale: 6 };
+  const cam = { x: 0, y: 0, scale: 4 };
   let started = false;
 
   function resize() {
@@ -82,10 +83,11 @@
     draw();
   }
 
-  // center the camera on cell 0 the first time plots exist
+  // center + fit the middle cell in view the first time plots exist
   function centerOnCenterCell() {
     const o = plotOrigin(0);
-    centerWorld(o.x + PLOT_W / 2, o.y + PLOT_H / 2);
+    const fit = Math.min(cv.width, cv.height) * 0.8 / PLOT_W;
+    centerWorld(o.x + PLOT_W / 2, o.y + PLOT_H / 2, Math.max(1, Math.min(80, fit)));
   }
 
   // jump to a specific plot by id, zoomed so it fills most of the screen
@@ -131,12 +133,15 @@
         ctx.strokeStyle = mine ? "#4ade80" : "#20202a";
         ctx.lineWidth = (mine ? 2 : 1) / cam.scale;
         ctx.strokeRect(ox, oy, PLOT_W, PLOT_H);
-        const px = plot.get("pixels");
-        if (px) px.forEach((color, key) => {
-          const [x, y] = key.split(",").map(Number);
-          ctx.fillStyle = color;
-          ctx.fillRect(ox + x, oy + y, 1, 1);
-        });
+        const w = plot.get("w") || PLOT_W, h = plot.get("h") || PLOT_H;
+        const pal = plot.get("pal") || [];
+        const cells = unpackCells(plot.get("cells") || "", w * h);
+        for (let i = 0; i < cells.length; i++) {
+          const v = cells[i];
+          if (!v) continue;
+          ctx.fillStyle = pal[v - 1] || "#000000";
+          ctx.fillRect(ox + (i % w), oy + ((i / w) | 0), 1, 1);
+        }
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       hud.textContent = `online: ${provider.awareness.getStates().size} · plots: ${plots.size} · zoom ${cam.scale.toFixed(1)}x`;

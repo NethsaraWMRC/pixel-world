@@ -1,6 +1,6 @@
 // Spiral plot layout — pure math, no deps. Same on every peer, no coordinator.
 // Plots never move: new peers claim the lowest free cell, leavers free their cell.
-export const PLOT_W = 32, PLOT_H = 32;
+export const PLOT_W = 128, PLOT_H = 128;
 
 export function spiralCell(n) {
   if (n === 0) return { gx: 0, gy: 0 };

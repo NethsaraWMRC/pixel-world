@@ -1,15 +1,16 @@
 {
-  "name": "pixelmesh",
+  "name": "pixelworld",
   "version": "0.1.0",
   "description": "P2P pixel world: connect from any terminal, agent pushes, syncs peer-to-peer. No state server.",
   "type": "module",
   "repository": "github:NethsaraWMRC/pixel-world",
   "bin": {
-    "pixelmesh": "cli/pixelmesh.js"
+    "pixelworld": "cli/pixelmesh.js"
   },
   "scripts": {
     "signal": "node node_modules/y-webrtc/bin/server.js",
     "connect": "node cli/pixelmesh.js connect",
+    "seed": "node cli/pixelmesh.js seed",
     "status": "node cli/pixelmesh.js status",
     "web": "node web/serve.js"
   },

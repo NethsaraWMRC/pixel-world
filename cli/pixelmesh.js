@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// PixelMesh terminal client (P2P — no state server).
-//   pixelmesh connect            join the mesh, claim a plot, receive protocol, stay live
-//   pixelmesh init               drop AGENT.md + build.json here so your agent knows what to do
-//   pixelmesh push build.json    apply World Protocol commands to your plot
-//   pixelmesh status             one-shot: who's online / how many plots
+// PixelWorld terminal client (P2P — no state server).
+//   pixelworld connect            join the mesh, claim a plot, receive protocol, stay live
+//   pixelworld init               drop AGENT.md + build.json here so your agent knows what to do
+//   pixelworld push build.json    apply World Protocol commands to your plot
+//   pixelworld status             one-shot: who's online / how many plots
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,9 +29,9 @@ function resolveSignaling() {
 }
 
 const PROTOCOL = {
-  plot: "32x32, coords 0..31, colors #rrggbb hex",
+  plot: "128x128, coords 0..127, colors #rrggbb hex",
   commands: ["clear", "fill_rect", "set_pixels", "set_title"],
-  howToPush: "write a JSON array of commands to build.json, then: pixelmesh push build.json",
+  howToPush: "write a JSON array of commands to build.json, then: pixelworld push build.json",
 };
 
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -81,9 +81,9 @@ async function connect() {
 }
 
 async function push(file) {
-  if (!file) { console.error("usage: pixelmesh push <file.json>"); process.exit(1); }
+  if (!file) { console.error("usage: pixelworld push <file.json>"); process.exit(1); }
   const cfg = load();
-  if (!cfg.peerId) { console.error("run `pixelmesh connect` first."); process.exit(1); }
+  if (!cfg.peerId) { console.error("run `pixelworld connect` first."); process.exit(1); }
   const cmds = JSON.parse(fs.readFileSync(file, "utf8"));
   const { plots, provider } = joinWorld(cfg.peerId, { signaling: resolveSignaling() });
 
@@ -122,29 +122,29 @@ async function status() {
 function init() {
   const cfg = load();
   const pushCmd = `npx -y github:${REPO} push build.json`;
-  const agentMd = `# You are connected to a PixelMesh pixel world
+  const agentMd = `# You are connected to a PixelWorld pixel world
 
-You control ONE 32x32 pixel plot in a shared, live world. To draw: write a JSON array of
+You control ONE 128x128 pixel plot in a shared, live world. To draw: write a JSON array of
 World Protocol commands to \`build.json\`, then run:  ${pushCmd}
 
 ## Commands you may put in build.json
 - {"cmd":"clear"}
-- {"cmd":"fill_rect","x":0,"y":0,"w":32,"h":8,"color":"#3b82f6"}
+- {"cmd":"fill_rect","x":0,"y":0,"w":128,"h":32,"color":"#3b82f6"}
 - {"cmd":"set_pixels","pixels":[[x,y,"#rrggbb"], ...]}
 - {"cmd":"set_title","title":"..."}
 
 ## Rules
-- Plot is 32x32. Coordinates 0..31. Colors are #rrggbb hex.
+- Plot is 128x128. Coordinates 0..127. Colors are #rrggbb hex.
 - Always start a fresh design with a \`clear\`.
 - Do NOT include a plotId — it is filled in automatically from your connection.
 - After writing build.json, run:  ${pushCmd}
 - Your plot appears live in the browser world within ~1s.
-${cfg.plotId ? `\nYour current plotId: ${cfg.plotId}` : "\n(Run `pixelmesh connect` first to claim your plot.)"}
+${cfg.plotId ? `\nYour current plotId: ${cfg.plotId}` : "\n(Run `pixelworld connect` first to claim your plot.)"}
 `;
   const exampleBuild = JSON.stringify([
     { cmd: "clear" },
     { cmd: "set_title", title: "hello" },
-    { cmd: "fill_rect", x: 8, y: 8, w: 16, h: 16, color: "#22c55e" },
+    { cmd: "fill_rect", x: 32, y: 32, w: 64, h: 64, color: "#22c55e" },
   ], null, 2) + "\n";
 
   fs.writeFileSync(path.join(process.cwd(), "AGENT.md"), agentMd);
@@ -163,7 +163,8 @@ const [cmd, arg] = process.argv.slice(2);
     else if (cmd === "init") init();
     else if (cmd === "push") await push(arg);
     else if (cmd === "status") await status();
-    else console.log("commands: connect | init | push <file.json> | status");
+    else if (cmd === "seed") await import("./seed.js");
+    else console.log("commands: connect | init | push <file.json> | status | seed");
   } catch (e) {
     console.error("failed:", e.message);
     process.exit(1);
