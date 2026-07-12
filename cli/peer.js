@@ -10,10 +10,13 @@ export const ROOM = process.env.PIXELMESH_ROOM || "pixelmesh-world";
 
 // STUN + free TURN so peers behind home routers (NAT) can still connect across networks.
 // TURN relays traffic when direct P2P is blocked (~20-30% of connections need it).
+// Node uses plain UDP TURN only — node-datachannel stalls on tcp/tls TURN URLs.
+// (Browsers use the full list incl. tcp/tls; both sides meet at the same relay.)
 export const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  // TURN_PLACEHOLDER
+  { urls: "stun:stun.relay.metered.ca:80" },
+  { urls: "turn:global.relay.metered.ca:80", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
+  { urls: "turn:global.relay.metered.ca:443", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
 ];
 
 export function joinWorld(peerId, { signaling } = {}) {

@@ -53,8 +53,11 @@
   // needed for the ~20-30% of networks where direct P2P is blocked.
   const ICE_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    // TURN_PLACEHOLDER
+    { urls: "stun:stun.relay.metered.ca:80" },
+    { urls: "turn:global.relay.metered.ca:80", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
+    { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
+    { urls: "turn:global.relay.metered.ca:443", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
+    { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "c8fceaed1cd84f3dc63d10a3", credential: "m1rJWeuhD0Lrv4iZ" },
   ];
 
   const doc = new Y.Doc();
