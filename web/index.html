@@ -49,9 +49,19 @@
   const DEFAULT_SIGNALING = "wss://pixelworld-signaling.www-ravindunethsararc.workers.dev";
   const SIGNALING = [new URLSearchParams(location.search).get("sig") || DEFAULT_SIGNALING];
 
+  // STUN for NAT traversal. TURN (relay) entries get added below if configured —
+  // needed for the ~20-30% of networks where direct P2P is blocked.
+  const ICE_SERVERS = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    // TURN_PLACEHOLDER
+  ];
+
   const doc = new Y.Doc();
   const plots = doc.getMap("plots");
-  const provider = new WebrtcProvider(ROOM, doc, { signaling: SIGNALING, maxConns: 40 });
+  const provider = new WebrtcProvider(ROOM, doc, {
+    signaling: SIGNALING, maxConns: 40, peerOpts: { config: { iceServers: ICE_SERVERS } },
+  });
   const peerId = "web_" + Math.random().toString(36).slice(2, 8);
   provider.awareness.setLocalStateField("peer", { id: peerId, t: Date.now() });
 
