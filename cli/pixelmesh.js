@@ -38,7 +38,7 @@ const saveSnap = (plot) => {
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
 // public signaling (Deno Deploy). Override locally with --signaling or PIXELMESH_SIGNALING.
-const DEFAULT_SIGNALING = "wss://pixel-world.nethsarawmrc.deno.net";
+const DEFAULT_SIGNALING = "wss://pixelworld-signaling.www-ravindunethsararc.workers.dev";
 function resolveSignaling() {
   // explicit flag/env wins; otherwise always the baked default (never a stale saved value)
   return flag("--signaling") || process.env.PIXELMESH_SIGNALING || DEFAULT_SIGNALING;

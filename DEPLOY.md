@@ -1,8 +1,8 @@
 # Deploy PixelMesh so anyone, anywhere can join
 
-Signaling host = **Deno Deploy** (free, no credit card, always-on).
+Signaling host = **Cloudflare Workers** (free, no credit card, always-on, single coherent instance).
 You deploy two things once:
-1. **Signaling server** → a public `wss://` URL (Deno Deploy).
+1. **Signaling server** → a public `wss://` URL (Cloudflare Workers + Durable Object).
 2. **Repo + browser viewer** → GitHub (public) + GitHub Pages.
 
 Then anyone runs one `npx` command to join. No clone, no download.
@@ -11,7 +11,7 @@ Then anyone runs one `npx` command to join. No clone, no download.
 
 ## PART 1 — Put the project on GitHub (public)
 
-Deno Deploy + Pages both pull from GitHub. In your project terminal:
+The viewer is served from GitHub Pages. In your project terminal:
 ```cmd
 git init
 git add -A
@@ -24,29 +24,33 @@ Make the repo **public**.
 
 ---
 
-## PART 2 — Deploy the signaling server (Deno Deploy, no card)
+## PART 2 — Deploy the signaling server (Cloudflare Workers, no card)
 
-1. Go to **https://dash.deno.com** → **Sign in with GitHub** (no credit card).
-2. **New Project** → **Deploy from GitHub repository** → pick **YOUR_REPO**.
-3. Settings:
-   - **Production branch:** `main`
-   - **Entry point:** `signaling-deno/main.ts`
-   - (no build step, no env vars needed)
-4. **Deploy**. Wait ~1 min.
-5. You get a URL like `https://your-project.deno.dev`.
-6. Test: open it in a browser → prints **okay**.
+Use Cloudflare Workers + a Durable Object. A Durable Object gives ONE coherent instance
+that holds every peer's connection, so peers always find each other. (Deno Deploy's
+multi-isolate model dropped signaling messages between isolates — peers on different
+isolates never linked, so drawings randomly failed to appear. That's why we use CF here.)
 
-Your signaling URL = same, with `https`→`wss`: **`wss://your-project.deno.dev`**
+```bash
+cd signaling-cf
+npx wrangler login       # opens a browser, authorize (free, no credit card)
+npx wrangler deploy      # deploys the Worker + Durable Object
+```
+It prints a URL like `https://pixelworld-signaling.YOUR-SUBDOMAIN.workers.dev`.
+Test: open it in a browser → prints **okay**.
+
+Your signaling URL = same, with `https`→`wss`:
+**`wss://pixelworld-signaling.YOUR-SUBDOMAIN.workers.dev`**
 
 ---
 
 ## PART 3 — Bake the URL into the app
 
-Replace `ws://localhost:4444` with your `wss://your-project.deno.dev` in **both**:
-- `cli/pixelmesh.js` → `const DEFAULT_SIGNALING = "wss://your-project.deno.dev";`
-- `web/index.html`   → `const DEFAULT_SIGNALING = "wss://your-project.deno.dev";`
+Replace the signaling URL with your `wss://pixelworld-signaling.YOUR-SUBDOMAIN.workers.dev` in **both**:
+- `cli/pixelmesh.js` → `const DEFAULT_SIGNALING = "wss://...workers.dev";`
+- `web/index.html`   → `const DEFAULT_SIGNALING = "wss://...workers.dev";`
 
-Then push again (Deno Deploy + Pages auto-update):
+Then push again (Pages auto-updates the viewer):
 ```cmd
 git add -A
 git commit -m "bake signaling url"
@@ -63,7 +67,7 @@ git push
    ```
    https://YOUR_USER.github.io/YOUR_REPO/web/index.html
    ```
-   Open it — it connects to your Deno signaling automatically.
+   Open it — it connects to your Cloudflare signaling automatically.
 
 ---
 
@@ -95,10 +99,10 @@ connect → ask agent to draw → push → it appears for everyone.
 
 ## Notes / limits
 - **Users need Node.js 20+** (`node -v`). That's all `npx` needs.
-- **Deno Deploy free**: no card, always-on, global. It relays only tiny signaling messages
-  (peer introductions) — never the pixel data — so it stays free at scale.
+- **Cloudflare Workers free**: no card, always-on, global. The Durable Object relays only
+  tiny signaling messages (peer introductions) — never pixel data — so it stays free at scale.
 - **Cross-network NAT:** ~20–30% of users behind strict NATs may fail without a TURN
   server (public STUN is free but doesn't cover them). Add TURN if joins fail.
 - **Scale:** WebRTC mesh suits ~5–30 concurrent. Hundreds needs a relay (= cost).
-- **Update after changes:** `git push`. Deno Deploy redeploys signaling, Pages updates the
-  viewer, and `npx github:` always fetches the latest.
+- **Update after changes:** `git push` (Pages + `npx github:` get the latest). Redeploy
+  signaling only if you changed `signaling-cf/`: `cd signaling-cf && npx wrangler deploy`.
