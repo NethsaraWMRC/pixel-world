@@ -23,6 +23,16 @@ const save = (o) => fs.writeFileSync(CFG, JSON.stringify(o, null, 2));
 const DIR = path.join(os.homedir(), ".pixelmesh");
 const SESSION = path.join(DIR, "session.json");   // connect heartbeat
 const INBOX = path.join(DIR, "inbox.json");        // pending push commands
+const SNAP = path.join(DIR, "plot.json");          // your last drawing (survives disconnect)
+const loadSnap = () => { try { return JSON.parse(fs.readFileSync(SNAP, "utf8")); } catch { return null; } };
+const saveSnap = (plot) => {
+  try {
+    fs.mkdirSync(DIR, { recursive: true });
+    fs.writeFileSync(SNAP, JSON.stringify({
+      cells: plot.get("cells") || "", pal: plot.get("pal") || [], title: plot.get("title") || "",
+    }));
+  } catch {}
+};
 
 // signaling URL resolution: --signaling flag > PIXELMESH_SIGNALING env > saved cfg
 const argv = process.argv.slice(2);
@@ -60,15 +70,27 @@ async function connect() {
   const { Y, plots, awareness, provider } = joinWorld(peerId, { signaling });
   await settle(1500); // let initial sync + peer discovery settle
 
-  // claim: reuse my existing plot if present, else take the lowest free cell
+  // claim: reuse my existing plot if present, else recreate my stable identity
   let mine = [...plots.values()].find((p) => p.get("owner") === peerId);
   if (!mine) {
-    const cell = nextFreeCell(plots);
-    const plotId = "plot_" + crypto.randomBytes(3).toString("hex");
+    // keep the same plotId + cell across sessions when possible (stable identity + link)
+    const used = new Set([...plots.values()].map((p) => p.get("cell")));
+    const cell = (cfg.cell != null && !used.has(cfg.cell)) ? cfg.cell : nextFreeCell(plots);
+    const plotId = cfg.plotId || ("plot_" + crypto.randomBytes(3).toString("hex"));
     mine = makePlot(Y, plots, { plotId, owner: peerId, cell });
+    // restore your last drawing from the local snapshot (world is otherwise ephemeral)
+    const snap = loadSnap();
+    if (snap && snap.cells) {
+      mine.set("cells", snap.cells);
+      mine.set("pal", snap.pal || []);
+      if (snap.title) mine.set("title", snap.title);
+      mine.set("updatedAt", Date.now());
+      console.log("restored your last drawing");
+    }
     console.log(`claimed ${plotId} at cell ${cell}`);
   }
-  save({ peerId, plotId: mine.get("plotId"), room: ROOM });
+  save({ peerId, plotId: mine.get("plotId"), cell: mine.get("cell"), room: ROOM });
+  saveSnap(mine);   // persist current state (also covers the very first empty plot)
 
   console.log("\n=== WELCOME SIGNAL ===");
   console.log("your plot:", mine.get("plotId"));
@@ -95,6 +117,7 @@ async function connect() {
     lastNonce = msg.nonce;
     let ok = 0;
     for (const c of msg.cmds) { if (!c.plotId) c.plotId = myPlotId; if (applyCommand(plots, peerId, c)) ok++; }
+    saveSnap(mine);   // persist so it survives disconnect
     console.log(`drew ${ok}/${msg.cmds.length} from push`);
   }, 400);
 
