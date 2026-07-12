@@ -97,7 +97,9 @@ async function main() {
   for (const g of GALLERY) {
     let plot = [...plots.values()].find((p) => p.get("owner") === PEER && p.get("cell") === g.cell);
     if (!plot) {
-      const plotId = "plot_seed_" + g.cell;
+      // "-" sorts before any user plotId ("plot_" + hex), so on a cell collision the
+      // user yields and the gallery keeps its spot.
+      const plotId = "plot_-seed" + g.cell;
       plot = makePlot(Y, plots, { plotId, owner: PEER, cell: g.cell });
     }
     const cmds = g.draw().map((c) => ({ ...c, plotId: plot.get("plotId") }));

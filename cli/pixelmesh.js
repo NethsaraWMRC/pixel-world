@@ -141,6 +141,23 @@ async function connect() {
     }
   }, 10000);
 
+  // ---- resolve cell collisions ----
+  // Two peers that claimed a cell while unsynced can land on the SAME cell and render
+  // stacked (only the top shows). On a collision the plot with the larger plotId yields:
+  // it moves to the lowest truly-free cell. Deterministic, so every peer converges.
+  setInterval(() => {
+    const myCell = mine.get("cell");
+    const sameCell = [...plots.values()].filter((p) => p.get("cell") === myCell);
+    if (sameCell.length <= 1) return;
+    const iYield = sameCell.every((p) => p.get("plotId") <= myPlotId); // I have the max id -> I move
+    if (!iYield) return;
+    const used = new Set([...plots.values()].map((p) => p.get("cell")));
+    let n = 0; while (used.has(n)) n++;
+    mine.set("cell", n);
+    save({ peerId, plotId: myPlotId, cell: n, room: ROOM });
+    console.log(`moved to cell ${n} (was overlapping another plot)`);
+  }, 5000);
+
   const leave = () => {
     try { plots.delete(myPlotId); } catch {}     // remove my plot on clean exit
     try { fs.unlinkSync(SESSION); } catch {}
