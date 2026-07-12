@@ -121,26 +121,6 @@ async function connect() {
     console.log(`drew ${ok}/${msg.cmds.length} from push`);
   }, 400);
 
-  // ---- garbage-collect orphan plots (owner offline for a while) ----
-  // Plots aren't auto-removed when a peer leaves, so dead sessions would pile up.
-  // Any live connect peer prunes plots whose owner hasn't been seen for GC_GRACE ms.
-  const GC_GRACE = Number(process.env.PIXELMESH_GC_GRACE || 40000);
-  const missingSince = new Map();
-  setInterval(() => {
-    const online = new Set([peerId]);
-    for (const st of awareness.getStates().values()) if (st.peer && st.peer.id) online.add(st.peer.id);
-    const now = Date.now();
-    for (const p of [...plots.values()]) {
-      const id = p.get("plotId"), owner = p.get("owner");
-      if (owner === peerId || online.has(owner)) { missingSince.delete(id); continue; }
-      if (!missingSince.has(id)) missingSince.set(id, now);
-      else if (now - missingSince.get(id) > GC_GRACE) {
-        plots.delete(id); missingSince.delete(id);
-        console.log(`removed orphan plot ${id} (owner offline)`);
-      }
-    }
-  }, 10000);
-
   // ---- resolve cell collisions ----
   // Two peers that claimed a cell while unsynced can land on the SAME cell and render
   // stacked (only the top shows). On a collision the plot with the larger plotId yields:
