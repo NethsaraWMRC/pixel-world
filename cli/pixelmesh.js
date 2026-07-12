@@ -121,7 +121,33 @@ async function connect() {
     console.log(`drew ${ok}/${msg.cmds.length} from push`);
   }, 400);
 
-  process.on("SIGINT", () => { try { fs.unlinkSync(SESSION); } catch {} provider.destroy(); process.exit(0); });
+  // ---- garbage-collect orphan plots (owner offline for a while) ----
+  // Plots aren't auto-removed when a peer leaves, so dead sessions would pile up.
+  // Any live connect peer prunes plots whose owner hasn't been seen for GC_GRACE ms.
+  const GC_GRACE = Number(process.env.PIXELMESH_GC_GRACE || 40000);
+  const missingSince = new Map();
+  setInterval(() => {
+    const online = new Set([peerId]);
+    for (const st of awareness.getStates().values()) if (st.peer && st.peer.id) online.add(st.peer.id);
+    const now = Date.now();
+    for (const p of [...plots.values()]) {
+      const id = p.get("plotId"), owner = p.get("owner");
+      if (owner === peerId || online.has(owner)) { missingSince.delete(id); continue; }
+      if (!missingSince.has(id)) missingSince.set(id, now);
+      else if (now - missingSince.get(id) > GC_GRACE) {
+        plots.delete(id); missingSince.delete(id);
+        console.log(`removed orphan plot ${id} (owner offline)`);
+      }
+    }
+  }, 10000);
+
+  const leave = () => {
+    try { plots.delete(myPlotId); } catch {}     // remove my plot on clean exit
+    try { fs.unlinkSync(SESSION); } catch {}
+    setTimeout(() => { provider.destroy(); process.exit(0); }, 300); // let the delete propagate
+  };
+  process.on("SIGINT", leave);
+  process.on("SIGTERM", leave);
   await new Promise(() => {}); // keep the peer alive (it holds your plot in the mesh)
 }
 
