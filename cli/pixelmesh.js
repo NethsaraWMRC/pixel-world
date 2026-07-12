@@ -12,6 +12,7 @@ import { joinWorld, ROOM } from "./peer.js";
 import { applyCommand, makePlot } from "../shared/protocol.js";
 import { nextFreeCell } from "../shared/layout.js";
 
+const VERSION = "0.2.0";                     // bump on every release — shown on connect/push
 const REPO = "NethsaraWMRC/pixel-world";     // used in generated agent instructions
 const VIEWER = "https://nethsarawmrc.github.io/pixel-world/web/index.html"; // browser world
 
@@ -66,6 +67,7 @@ async function connect() {
   const cfg = load();
   const peerId = cfg.peerId || "peer_" + crypto.randomBytes(3).toString("hex");
   const signaling = resolveSignaling();
+  console.log(`pixelworld v${VERSION}`);
   console.log(`joining "${ROOM}" via ${signaling} …`);
   const { Y, plots, awareness, provider } = joinWorld(peerId, { signaling });
   await settle(1500); // let initial sync + peer discovery settle
@@ -162,7 +164,7 @@ async function push(file) {
   }
   fs.mkdirSync(DIR, { recursive: true });
   fs.writeFileSync(INBOX, JSON.stringify({ cmds, nonce: Date.now(), plotId: cfg.plotId }));
-  console.log(`queued ${cmds.length} commands to your live session (${sess.plotId}) — appears in the world in ~1s.`);
+  console.log(`[v${VERSION}] queued ${cmds.length} commands to your live session (${sess.plotId}) — appears in the world in ~1s.`);
   process.exit(0);
 }
 
@@ -181,7 +183,9 @@ async function status() {
 // (Claude Code, Cursor, …) can read the rules and draw, on a machine that never cloned the repo.
 function init() {
   const cfg = load();
-  const pushCmd = `npx -y github:${REPO} push build.json`;
+  // IMPORTANT: use the globally installed command, NOT `npx github:...` — npx caches the
+  // package and keeps running stale code after the repo updates.
+  const pushCmd = `pixelworld push build.json`;
   const agentMd = `# You are connected to a PixelWorld pixel world
 
 You control ONE 128x128 pixel plot in a shared, live world. To draw: write a JSON array of
@@ -224,7 +228,8 @@ const [cmd, arg] = process.argv.slice(2);
     else if (cmd === "push") await push(arg);
     else if (cmd === "status") await status();
     else if (cmd === "seed") await import("./seed.js");
-    else console.log("commands: connect | init | push <file.json> | status | seed");
+    else if (cmd === "version") console.log(`pixelworld v${VERSION}`);
+    else console.log(`pixelworld v${VERSION} — commands: connect | init | push <file.json> | status | seed | version`);
   } catch (e) {
     console.error("failed:", e.message);
     process.exit(1);

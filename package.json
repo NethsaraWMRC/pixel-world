@@ -1,6 +1,6 @@
 {
   "name": "pixelworld",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "P2P pixel world: connect from any terminal, agent pushes, syncs peer-to-peer. No state server.",
   "type": "module",
   "repository": "github:NethsaraWMRC/pixel-world",
