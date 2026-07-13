@@ -12,7 +12,7 @@ import { joinWorld, ROOM } from "./peer.js";
 import { applyCommand, makePlot } from "../shared/protocol.js";
 import { nextFreeCell } from "../shared/layout.js";
 
-const VERSION = "0.2.1";                     // bump on every release — shown on connect/push
+const VERSION = "0.2.2";                     // bump on every release — shown on connect/push
 const REPO = "NethsaraWMRC/pixel-world";     // used in generated agent instructions
 const VIEWER = "https://nethsarawmrc.github.io/pixel-world/web/index.html"; // browser world
 

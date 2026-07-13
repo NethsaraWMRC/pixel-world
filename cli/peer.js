@@ -6,6 +6,15 @@ import * as Y from "yjs";
 import { WebrtcProvider } from "y-webrtc";
 import * as wrtc from "node-datachannel/polyfill";
 
+// y-webrtc needs a global `WebSocket` to reach the signaling server. Node only ships one
+// built in from v22.4+ — on older Node (v20/v21, or v22 without the flag) it's undefined
+// and everything fails with "WebSocket is not defined". Polyfill it unconditionally so
+// `pixelworld` works the same on any Node 20+, no flags, no version guesswork.
+if (typeof globalThis.WebSocket === "undefined") {
+  const { WebSocket } = await import("ws");
+  globalThis.WebSocket = WebSocket;
+}
+
 export const ROOM = process.env.PIXELMESH_ROOM || "pixelmesh-world";
 
 // STUN + free TURN so peers behind home routers (NAT) can still connect across networks.

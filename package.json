@@ -1,6 +1,6 @@
 {
   "name": "pixelworld",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "P2P pixel world: connect from any terminal, agent pushes, syncs peer-to-peer. No state server.",
   "type": "module",
   "repository": "github:NethsaraWMRC/pixel-world",
@@ -18,8 +18,9 @@
     "node": ">=20"
   },
   "dependencies": {
-    "yjs": "^13.6.20",
+    "node-datachannel": "^0.11.0",
+    "ws": "^8.21.0",
     "y-webrtc": "^10.3.0",
-    "node-datachannel": "^0.11.0"
+    "yjs": "^13.6.20"
   }
 }
