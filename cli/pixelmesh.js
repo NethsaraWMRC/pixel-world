@@ -12,7 +12,7 @@ import { joinWorld, ROOM } from "./peer.js";
 import { applyCommand, makePlot } from "../shared/protocol.js";
 import { nextFreeCell } from "../shared/layout.js";
 
-const VERSION = "0.2.0";                     // bump on every release — shown on connect/push
+const VERSION = "0.2.1";                     // bump on every release — shown on connect/push
 const REPO = "NethsaraWMRC/pixel-world";     // used in generated agent instructions
 const VIEWER = "https://nethsarawmrc.github.io/pixel-world/web/index.html"; // browser world
 
@@ -30,6 +30,7 @@ const saveSnap = (plot) => {
   try {
     fs.mkdirSync(DIR, { recursive: true });
     fs.writeFileSync(SNAP, JSON.stringify({
+      w: plot.get("w"), h: plot.get("h"),
       cells: plot.get("cells") || "", pal: plot.get("pal") || [], title: plot.get("title") || "",
     }));
   } catch {}
@@ -80,14 +81,18 @@ async function connect() {
     const cell = (cfg.cell != null && !used.has(cfg.cell)) ? cfg.cell : nextFreeCell(plots);
     const plotId = cfg.plotId || ("plot_" + crypto.randomBytes(3).toString("hex"));
     mine = makePlot(Y, plots, { plotId, owner: peerId, cell });
-    // restore your last drawing from the local snapshot (world is otherwise ephemeral)
+    // restore your last drawing from the local snapshot (world is otherwise ephemeral).
+    // only if it matches the current plot size — discard stale snapshots from an old version.
     const snap = loadSnap();
-    if (snap && snap.cells) {
+    if (snap && snap.cells && snap.w === mine.get("w") && snap.h === mine.get("h")) {
       mine.set("cells", snap.cells);
       mine.set("pal", snap.pal || []);
       if (snap.title) mine.set("title", snap.title);
       mine.set("updatedAt", Date.now());
       console.log("restored your last drawing");
+    } else if (snap && snap.cells) {
+      try { fs.unlinkSync(SNAP); } catch {}
+      console.log("discarded an old-format saved drawing (plot size changed)");
     }
     console.log(`claimed ${plotId} at cell ${cell}`);
   }
